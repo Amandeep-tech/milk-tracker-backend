@@ -8,6 +8,7 @@ app.use(cors());
 app.use(express.json());
 
 const milkRoutes = require('./routes/milkRoutes');
+const ResponseDto = require('./utils/responseDto');
 
 app.use('/api/milk', milkRoutes);
 
