@@ -11,6 +11,13 @@ const milkRoutes = require('./routes/milkRoutes');
 
 app.use('/api/milk', milkRoutes);
 
+
+
+
+app.get('/health', (req, res) => {
+    res.json(ResponseDto.success(null, 'Milk Tracker Backend Server is running'));
+});
+
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
