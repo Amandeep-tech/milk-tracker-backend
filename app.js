@@ -8,8 +8,16 @@ app.use(cors());
 app.use(express.json());
 
 const milkRoutes = require('./routes/milkRoutes');
+const ResponseDto = require('./utils/responseDto');
 
 app.use('/api/milk', milkRoutes);
+
+
+
+
+app.get('/health', (req, res) => {
+    res.json(ResponseDto.success(null, 'Milk Tracker Backend Server is healthy'));
+});
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
