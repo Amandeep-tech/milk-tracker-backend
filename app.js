@@ -16,7 +16,7 @@ app.use('/api/milk', milkRoutes);
 
 
 app.get('/health', (req, res) => {
-    res.json(ResponseDto.success(null, 'Milk Tracker Backend Server is running'));
+    res.json(ResponseDto.success(null, 'Milk Tracker Backend Server is healthy'));
 });
 
 const PORT = process.env.PORT || 5000;
