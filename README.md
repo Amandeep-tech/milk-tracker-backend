@@ -159,4 +159,4 @@ The API will be available at `http://localhost:3000` (or your configured port).
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details 
+This project is licensed under the Amandeep Ji License :/
