@@ -50,3 +50,13 @@ exports.deleteEntry = async (req, res) => {
     res.status(500).json(ResponseDto.error(err.message));
   }
 };
+
+exports.getEntryById = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const [rows] = await db.execute('SELECT * FROM milk_entries WHERE id = ?', [id]);
+    res.json(ResponseDto.success(rows[0]));
+  } catch (err) {
+    res.status(500).json(ResponseDto.error(err.message));
+  }
+};
