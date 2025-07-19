@@ -25,6 +25,6 @@ dist-ssr
 .env
 
 # Elastic Beanstalk Files
-.elasticbeanstalk/*
+.elasticbeanstalk/app_versions/*
 !.elasticbeanstalk/*.cfg.yml
 !.elasticbeanstalk/*.global.yml
