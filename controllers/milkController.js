@@ -2,12 +2,27 @@ const db = require('../models/db');
 const ResponseDto = require('../utils/responseDto');
 const { epochToMySQLTimestamp, mysqlTimestampToEpoch } = require('../utils/dateUtils');
 
+const isEntryAlreadyCreatedWithDate = async (mysqlDate) => {
+  const [rows] = await db.execute(
+    'Select id from milk_entries where DATE(date) = DATE(?) LIMIT 1', [mysqlDate]
+  )
+  return rows.length > 0;
+}
+
 // Create a milk entry
 exports.createEntry = async (req, res) => {
   const { date, quantity, rate } = req.body;
   try {
     // Convert epoch to MySQL timestamp
     const mysqlDate = epochToMySQLTimestamp(date);
+
+    // check if an entry is already present in table for mysqlDate
+    const dateAlreadyPresent = await isEntryAlreadyCreatedWithDate(mysqlDate);
+    if(dateAlreadyPresent) {
+      return res.status(400).json(ResponseDto.error('Entry for this date already present'))
+    }
+
+    // otherwise continue insertion :)
     const [result] = await db.execute(
       'INSERT INTO milk_entries (date, quantity, rate) VALUES (?, ?, ?)',
       [mysqlDate, quantity, rate]
