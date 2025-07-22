@@ -1,13 +1,16 @@
 const db = require('../models/db');
 const ResponseDto = require('../utils/responseDto');
+const { epochToMySQLTimestamp, mysqlTimestampToEpoch } = require('../utils/dateUtils');
 
 // Create a milk entry
 exports.createEntry = async (req, res) => {
   const { date, quantity, rate } = req.body;
   try {
+    // Convert epoch to MySQL timestamp
+    const mysqlDate = epochToMySQLTimestamp(date);
     const [result] = await db.execute(
       'INSERT INTO milk_entries (date, quantity, rate) VALUES (?, ?, ?)',
-      [date, quantity, rate]
+      [mysqlDate, quantity, rate]
     );
     res.status(201).json(ResponseDto.success({ id: result.insertId }, 'Entry created successfully'));
   } catch (err) {
@@ -19,8 +22,14 @@ exports.createEntry = async (req, res) => {
 exports.getAllEntries = async (req, res) => {
   try {
     const [rows] = await db.execute('SELECT * FROM milk_entries ORDER BY date DESC');
-    res.json(ResponseDto.success(rows));
+    // Convert MySQL timestamps to epoch in response
+    const formattedRows = rows.map(row => ({
+      ...row,
+      date: mysqlTimestampToEpoch(row.date)
+    }));
+    res.json(ResponseDto.success(formattedRows));
   } catch (err) {
+    console.log(err);
     res.status(500).json(ResponseDto.error(err.message));
   }
 };
@@ -30,9 +39,11 @@ exports.updateEntry = async (req, res) => {
   const { id } = req.params;
   const { date, quantity, rate } = req.body;
   try {
+    // Convert epoch to MySQL timestamp
+    const mysqlDate = epochToMySQLTimestamp(date);
     await db.execute(
       'UPDATE milk_entries SET date=?, quantity=?, rate=? WHERE id=?',
-      [date, quantity, rate, id]
+      [mysqlDate, quantity, rate, id]
     );
     res.json(ResponseDto.success(null, 'Updated successfully'));
   } catch (err) {
@@ -51,11 +62,20 @@ exports.deleteEntry = async (req, res) => {
   }
 };
 
+// Get entry by ID
 exports.getEntryById = async (req, res) => {
   const { id } = req.params;
   try {
     const [rows] = await db.execute('SELECT * FROM milk_entries WHERE id = ?', [id]);
-    res.json(ResponseDto.success(rows[0]));
+    if (rows.length === 0) {
+      return res.status(404).json(ResponseDto.error('Entry not found'));
+    }
+    // Convert MySQL timestamp to epoch in response
+    const formattedRow = {
+      ...rows[0],
+      date: mysqlTimestampToEpoch(rows[0].date)
+    };
+    res.json(ResponseDto.success(formattedRow));
   } catch (err) {
     res.status(500).json(ResponseDto.error(err.message));
   }
