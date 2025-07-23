@@ -46,3 +46,23 @@ exports.getAllPayments = async (req, res) => {
         res.status(500).json(ResponseDto.error(err.message));
     }
 }
+
+exports.getPaymentByMonth = async (req, res) => {
+    const { monthYear } = req.params;
+  
+    try {
+      const [rows] = await db.execute(
+        `SELECT id, month_year, amount_paid, paid_on, notes FROM payments WHERE month_year = ? LIMIT 1`,
+        [monthYear]
+      );
+  
+      if (rows.length === 0) {
+        return res.status(404).json(ResponseDto.error('No payment record found for this month'));
+      }
+  
+      res.status(200).json(ResponseDto.success(rows[0], 'Payment record found'));
+    } catch (err) {
+      res.status(500).json(ResponseDto.error(err.message));
+    }
+  };
+  
