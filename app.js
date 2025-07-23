@@ -8,10 +8,11 @@ app.use(cors());
 app.use(express.json());
 
 const milkRoutes = require('./routes/milkRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
 const ResponseDto = require('./utils/responseDto');
 
 app.use('/api/milk', milkRoutes);
-
+app.use('/api/payments', paymentRoutes);
 
 
 

@@ -9,4 +9,6 @@ router.post('/', milkController.createEntry);
 router.put('/:id', milkController.updateEntry);
 router.delete('/:id', milkController.deleteEntry);
 
+router.get('/summary/:monthYear', milkController.getMonthSummary);
+
 module.exports = router;
