@@ -151,7 +151,7 @@ exports.getMonthSummary = async (req, res) => {
           entryCount: entries.length,
           month: monthYear,
           paymentDone,
-          paymentDetails: paymentDone ? paymentResult[0] : null,
+          paymentDetails: paymentDone ? payment[0] : null,
         },
         "Month summary fetched"
       )
