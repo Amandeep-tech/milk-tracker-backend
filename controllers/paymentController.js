@@ -29,3 +29,20 @@ exports.createPayment = async (req, res) => {
     res.status(500).json(ResponseDto.error(err.message));
   }
 }
+
+exports.getAllPayments = async (req, res) => {
+    try {
+        const [rows] = await db.execute(
+            `Select id, month_year, amount_paid, paid_on, notes from payments
+                order by month_year desc
+            `
+        );
+    if(rows.length === 0) {
+        return res.status(200).json(ResponseDto.success(rows, 'No payments found'));
+    }
+    res.json(ResponseDto.success(rows, 'Payments fetched successfully'));
+    } catch (err) {
+        console.log(err);
+        res.status(500).json(ResponseDto.error(err.message));
+    }
+}
