@@ -161,3 +161,23 @@ exports.getMonthSummary = async (req, res) => {
     res.status(500).json(ResponseDto.error(err.message));
   }
 };
+
+
+exports.getEntriesByMonthYear = async (req, res) => {
+  const { monthYear } = req.params;
+  try {
+    const [entries] = await db.execute(
+      `select * from milk_entries where DATE_FORMAT(date, '%Y-%m') = ?`,
+      [monthYear]
+    );
+    // Convert MySQL timestamps to epoch in response
+    const formattedRows = entries.map((row) => ({
+      ...row,
+      date: mysqlTimestampToEpoch(row.date),
+    }));
+    res.json(ResponseDto.success(formattedRows, "Entries fetched successfully"));
+  } catch (err) {
+    console.log(err);
+    res.status(500).json(ResponseDto.error(err.message));
+  }
+};
