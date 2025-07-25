@@ -4,6 +4,7 @@ const {
   epochToMySQLTimestamp,
   mysqlTimestampToEpoch,
 } = require("../utils/dateUtils");
+const { getMilkSummaryQuantityWise } = require("../utils/globalUtil");
 
 const isEntryAlreadyCreatedWithDate = async (mysqlDate) => {
   const [rows] = await db.execute(
@@ -118,13 +119,14 @@ exports.getMonthSummary = async (req, res) => {
   try {
     // 1. fetch milk entried for this month
     const [entries] = await db.execute(
-      `select quantity, rate from milk_entries where DATE_FORMAT(date, '%Y-%m') = ?`,
+      `select quantity, rate, date from milk_entries where DATE_FORMAT(date, '%Y-%m') = ?`,
       [monthYear]
     );
+    console.log("entries", entries);
     if (entries.length === 0) {
       return res
-        .status(404)
-        .json(ResponseDto.error("No entries found for this month"));
+        .status(200)
+        .json(ResponseDto.success(null, "No entries found for this month"));
     }
 
     // 2. calculate total quantity and total amount
@@ -142,7 +144,10 @@ exports.getMonthSummary = async (req, res) => {
     );
     const paymentDone = payment.length > 0;
 
-    // 4. prepare response
+    // 4. Also format milk quantity by no.of days
+    const summary = getMilkSummaryQuantityWise(entries)
+
+    // 5. prepare response
     res.json(
       ResponseDto.success(
         {
@@ -152,6 +157,7 @@ exports.getMonthSummary = async (req, res) => {
           month: monthYear,
           paymentDone,
           paymentDetails: paymentDone ? payment[0] : null,
+          summary
         },
         "Month summary fetched"
       )
@@ -167,7 +173,7 @@ exports.getEntriesByMonthYear = async (req, res) => {
   const { monthYear } = req.params;
   try {
     const [entries] = await db.execute(
-      `select * from milk_entries where DATE_FORMAT(date, '%Y-%m') = ?`,
+      `select * from milk_entries where DATE_FORMAT(date, '%Y-%m') = ? order by date desc`,
       [monthYear]
     );
     // Convert MySQL timestamps to epoch in response
