@@ -196,14 +196,15 @@ exports.getEntryById = async (req, res) => {
 };
 
 exports.getMonthSummary = async (req, res) => {
-  const { monthYear } = req.params; // expected "YYYY-MM"
+  const { monthYear } = req.params; // "YYYY-MM"
+
   try {
     const { monthStart, nextMonthStart } = monthStartAndNext(monthYear);
 
     // 1. fetch milk entries for this month
     const { data: entries, error: entriesError } = await supabase
       .from("milk_entries")
-      .select("liters, rate, date, total_amount")
+      .select("quantity, rate, date")
       .gte("date", monthStart)
       .lt("date", nextMonthStart)
       .order("date", { ascending: false });
@@ -216,17 +217,17 @@ exports.getMonthSummary = async (req, res) => {
         .json(ResponseDto.success(null, "No entries found for this month"));
     }
 
-    // 2. calculate total quantity and total amount
+    // 2. calculate totals
     let totalQuantity = 0;
     let totalAmount = 0;
-    entries.forEach((entry) => {
-      // if total_amount exists (generated), prefer it; fallback to liters*rate_per_litre
-      const amount =
-        entry.total_amount !== undefined && entry.total_amount !== null
-          ? parseFloat(entry.total_amount)
-          : parseFloat(entry.liters) * parseFloat(entry.rate_per_litre);
 
-      totalQuantity += parseFloat(entry.liters);
+    entries.forEach((entry) => {
+      const amount =
+        entry.total_amount !== null && entry.total_amount !== undefined
+          ? Number(entry.total_amount)
+          : Number(entry.quantity) * Number(entry.rate);
+
+      totalQuantity += Number(entry.quantity);
       totalAmount += amount;
     });
 
@@ -234,16 +235,17 @@ exports.getMonthSummary = async (req, res) => {
     const { data: payments, error: paymentError } = await supabase
       .from("payments")
       .select("amount_paid, paid_on, notes")
-      .eq("month_date", monthStart)
+      .eq("month_year", monthStart)
       .limit(1);
 
     if (paymentError) throw paymentError;
-    const paymentDone = Array.isArray(payments) && payments.length > 0;
 
-    // 4. Also format milk quantity by no.of days
+    const paymentDone = payments && payments.length > 0;
+
+    // 4. quantity summary by day
     const summary = getMilkSummaryQuantityWise(entries);
 
-    // 5. prepare response
+    // 5. response
     res.json(
       ResponseDto.success(
         {
@@ -263,6 +265,7 @@ exports.getMonthSummary = async (req, res) => {
     res.status(500).json(ResponseDto.error(err.message));
   }
 };
+
 
 exports.getEntriesByMonthYear = async (req, res) => {
   const { monthYear } = req.params; // "YYYY-MM"
