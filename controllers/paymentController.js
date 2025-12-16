@@ -1,34 +1,67 @@
+const supabase = require('../models/db');
 const db = require('../models/db');
 const ResponseDto = require('../utils/responseDto');
 
 exports.createPayment = async (req, res) => {
   const { monthYear, amountPaid, notes } = req.body;
+
   try {
-    // Check if a payment already exists for the month
-    const [existing] = await db.execute(
-        'SELECT id FROM payments WHERE month_year = ? LIMIT 1',
-        [monthYear]
-      );
-    if(existing.length > 0) {
-      return res.status(400).json(ResponseDto.error('Payment for this month already exists'));
+    // Validate monthYear
+    if (!/^\d{4}-\d{2}$/.test(monthYear)) {
+      return res
+        .status(400)
+        .json(ResponseDto.error("monthYear must be in YYYY-MM format"));
     }
 
-    // otherwise continue insertion :)
-    const [result] = await db.execute(
-        'INSERT INTO payments (month_year, amount_paid, notes) VALUES (?, ?, ?)',
-        [monthYear, amountPaid, notes]
-      );  
-    res.json(ResponseDto.success({ 
-        id: result.insertId,
-        monthYear,
-        amountPaid,
-        notes
-     }, 'Payment created successfully'));
+    // Convert "YYYY-MM" → "YYYY-MM-01"
+    // this is just to understand that this payment is for which month.
+    const monthDate = `${monthYear}-01`;
+
+    // 1. Check if payment already exists
+    const { data: existing, error: checkError } = await supabase
+      .from("payments")
+      .select("id")
+      .eq("month_year", monthDate)
+      .limit(1);
+
+    if (checkError) throw checkError;
+
+    if (existing && existing.length > 0) {
+      return res
+        .status(400)
+        .json(ResponseDto.error("Payment for this month already exists"));
+    }
+
+    // 2. Insert payment
+    const { data, error } = await supabase
+      .from("payments")
+      .insert({
+        month_year: monthDate,
+        amount_paid: amountPaid,
+        notes: notes ?? null,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    res.json(
+      ResponseDto.success(
+        {
+          id: data.id,
+          monthYear,
+          amountPaid,
+          notes: data.notes,
+        },
+        "Payment created successfully"
+      )
+    );
   } catch (err) {
-    console.log(err);
+    console.error("createPayment error:", err);
     res.status(500).json(ResponseDto.error(err.message));
   }
-}
+};
+
 
 exports.getAllPayments = async (req, res) => {
     try {

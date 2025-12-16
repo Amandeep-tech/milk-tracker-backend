@@ -1,4 +1,4 @@
-const db = require("../models/db");
+const supabase = require("../models/db"); // should export supabase client (CommonJS)
 const ResponseDto = require("../utils/responseDto");
 const {
   epochToMySQLTimestamp,
@@ -6,61 +6,103 @@ const {
 } = require("../utils/dateUtils");
 const { getMilkSummaryQuantityWise } = require("../utils/globalUtil");
 
-const isEntryAlreadyCreatedWithDate = async (mysqlDate) => {
-  const [rows] = await db.execute(
-    "Select id from milk_entries where DATE(date) = DATE(?) LIMIT 1",
-    [mysqlDate]
-  );
-  return rows.length > 0;
+/*
+  ASSUMPTION: Supabase table columns are:
+    milk_entries: id, entry_date (date), liters (numeric), rate_per_litre (numeric), total_amount, notes, created_at
+    payments: id, month_date (date, first of month), amount_paid, paid_on, notes, created_at
+
+  If your tables use different column names (e.g., date/quantity/rate), replace field names accordingly (see note below).
+*/
+
+// helper to get month start (YYYY-MM-01) and next month start
+function monthStartAndNext(monthYear /* e.g. "2025-01" */) {
+  const [yearStr, monStr] = monthYear.split("-");
+  const year = parseInt(yearStr, 10);
+  const month = parseInt(monStr, 10); // 1-12
+  const monthStart = new Date(Date.UTC(year, month - 1, 1)); // UTC date
+  const next = new Date(Date.UTC(year, month - 1, 1));
+  next.setUTCMonth(next.getUTCMonth() + 1);
+  // Format YYYY-MM-DD
+  const fmt = (d) => d.toISOString().slice(0, 10);
+  return { monthStart: fmt(monthStart), nextMonthStart: fmt(next) };
+}
+
+// Check if entry exists for a given date (dateString expected as 'YYYY-MM-DD' or ISO)
+const isEntryAlreadyCreatedWithDate = async (isoDate) => {
+  const { data, error } = await supabase
+    .from("milk_entries")
+    .select("id", { count: "exact", head: false })
+    .eq("date", isoDate)
+    .limit(1);
+
+  if (error) {
+    // bubble up error to caller
+    throw error;
+  }
+  return Array.isArray(data) && data.length > 0;
 };
 
 // Create a milk entry
 exports.createEntry = async (req, res) => {
-  const { date, quantity, rate } = req.body;
-  try {
-    // Convert epoch to MySQL timestamp
-    const mysqlDate = epochToMySQLTimestamp(date);
+  const { date, quantity, rate, notes } = req.body;
 
-    // check if an entry is already present in table for mysqlDate
-    const dateAlreadyPresent = await isEntryAlreadyCreatedWithDate(mysqlDate);
-    if (dateAlreadyPresent) {
+  try {
+    // date must be 'YYYY-MM-DD'
+    if (!date || isNaN(Date.parse(date))) {
+      return res
+        .status(400)
+        .json(ResponseDto.error("Invalid date format. Use YYYY-MM-DD"));
+    }
+
+    const exists = await isEntryAlreadyCreatedWithDate(date);
+    if (exists) {
       return res
         .status(400)
         .json(ResponseDto.error("Entry for this date already present"));
     }
 
-    // otherwise continue insertion :)
-    const [result] = await db.execute(
-      "INSERT INTO milk_entries (date, quantity, rate) VALUES (?, ?, ?)",
-      [mysqlDate, quantity, rate]
-    );
+    const { data, error } = await supabase
+      .from("milk_entries")
+      .insert({
+        date,         
+        quantity,
+        rate,
+        notes: notes || null,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
     res
       .status(201)
-      .json(
-        ResponseDto.success(
-          { id: result.insertId },
-          "Entry created successfully"
-        )
-      );
+      .json(ResponseDto.success({ id: data.id }, "Entry created successfully"));
   } catch (err) {
+    console.error(err);
     res.status(500).json(ResponseDto.error(err.message));
   }
 };
 
+
 // Get all entries
 exports.getAllEntries = async (req, res) => {
   try {
-    const [rows] = await db.execute(
-      "SELECT * FROM milk_entries ORDER BY date DESC"
-    );
-    // Convert MySQL timestamps to epoch in response
-    const formattedRows = rows.map((row) => ({
+    const { data: rows, error } = await supabase
+      .from("milk_entries")
+      .select("*")
+      .order("date", { ascending: false });
+
+    if (error) throw error;
+
+    const formattedRows = (rows || []).map((row) => ({
       ...row,
+      // convert date (date) to epoch ms (reuse your util)
       date: mysqlTimestampToEpoch(row.date),
     }));
+
     res.json(ResponseDto.success(formattedRows));
   } catch (err) {
-    console.log(err);
+    console.error(err);
     res.status(500).json(ResponseDto.error(err.message));
   }
 };
@@ -68,27 +110,60 @@ exports.getAllEntries = async (req, res) => {
 // Update entry
 exports.updateEntry = async (req, res) => {
   const { id } = req.params;
-  const { date, quantity, rate } = req.body;
+  const { date, quantity, rate, notes } = req.body;
+
   try {
-    // Convert epoch to MySQL timestamp
-    const mysqlDate = epochToMySQLTimestamp(date);
-    await db.execute(
-      "UPDATE milk_entries SET date=?, quantity=?, rate=? WHERE id=?",
-      [mysqlDate, quantity, rate, id]
-    );
+    // Normalize date for Postgres (YYYY-MM-DD)
+    let entryDate;
+
+    if (typeof date === "number") {
+      // epoch → YYYY-MM-DD
+      const ms = date.toString().length === 13 ? date : date * 1000;
+      entryDate = new Date(ms).toISOString().slice(0, 10);
+    } else if (typeof date === "string") {
+      // already YYYY-MM-DD
+      if (isNaN(Date.parse(date))) {
+        return res
+          .status(400)
+          .json(ResponseDto.error("Invalid date format. Use YYYY-MM-DD"));
+      }
+      entryDate = date;
+    } else {
+      return res
+        .status(400)
+        .json(ResponseDto.error("Date is required"));
+    }
+
+    const { error } = await supabase
+      .from("milk_entries")
+      .update({
+        date: entryDate,
+        quantity,
+        rate,
+        notes: notes ?? null,
+      })
+      .eq("id", id);
+
+    if (error) throw error;
+
     res.json(ResponseDto.success(null, "Updated successfully"));
   } catch (err) {
+    console.error("updateEntry error:", err);
     res.status(500).json(ResponseDto.error(err.message));
   }
 };
+
 
 // Delete entry
 exports.deleteEntry = async (req, res) => {
   const { id } = req.params;
   try {
-    await db.execute("DELETE FROM milk_entries WHERE id = ?", [id]);
+    const { error } = await supabase.from("milk_entries").delete().eq("id", id);
+
+    if (error) throw error;
     res.json(ResponseDto.success(null, "Deleted successfully"));
   } catch (err) {
+    console.error("deleteEntry error:", err);
     res.status(500).json(ResponseDto.error(err.message));
   }
 };
@@ -97,57 +172,80 @@ exports.deleteEntry = async (req, res) => {
 exports.getEntryById = async (req, res) => {
   const { id } = req.params;
   try {
-    const [rows] = await db.execute("SELECT * FROM milk_entries WHERE id = ?", [
-      id,
-    ]);
-    if (rows.length === 0) {
+    const { data: rows, error } = await supabase
+      .from("milk_entries")
+      .select("*")
+      .eq("id", id)
+      .limit(1);
+
+    if (error) throw error;
+    if (!rows || rows.length === 0) {
       return res.status(404).json(ResponseDto.error("Entry not found"));
     }
-    // Convert MySQL timestamp to epoch in response
+
     const formattedRow = {
       ...rows[0],
       date: mysqlTimestampToEpoch(rows[0].date),
     };
+
     res.json(ResponseDto.success(formattedRow));
   } catch (err) {
+    console.error(err);
     res.status(500).json(ResponseDto.error(err.message));
   }
 };
 
 exports.getMonthSummary = async (req, res) => {
-  const { monthYear } = req.params;
+  const { monthYear } = req.params; // "YYYY-MM"
+
   try {
-    // 1. fetch milk entried for this month
-    const [entries] = await db.execute(
-      `select quantity, rate, date from milk_entries where DATE_FORMAT(date, '%Y-%m') = ?`,
-      [monthYear]
-    );
-    console.log("entries", entries);
-    if (entries.length === 0) {
+    const { monthStart, nextMonthStart } = monthStartAndNext(monthYear);
+
+    // 1. fetch milk entries for this month
+    const { data: entries, error: entriesError } = await supabase
+      .from("milk_entries")
+      .select("quantity, rate, date")
+      .gte("date", monthStart)
+      .lt("date", nextMonthStart)
+      .order("date", { ascending: false });
+
+    if (entriesError) throw entriesError;
+
+    if (!entries || entries.length === 0) {
       return res
         .status(200)
         .json(ResponseDto.success(null, "No entries found for this month"));
     }
 
-    // 2. calculate total quantity and total amount
+    // 2. calculate totals
     let totalQuantity = 0;
     let totalAmount = 0;
+
     entries.forEach((entry) => {
-      totalQuantity += entry.quantity;
-      totalAmount += entry.quantity * entry.rate;
+      const amount =
+        entry.total_amount !== null && entry.total_amount !== undefined
+          ? Number(entry.total_amount)
+          : Number(entry.quantity) * Number(entry.rate);
+
+      totalQuantity += Number(entry.quantity);
+      totalAmount += amount;
     });
 
     // 3. fetch payment for this month
-    const [payment] = await db.execute(
-      `select amount_paid, paid_on, notes from payments where month_year = ? LIMIT 1`,
-      [monthYear]
-    );
-    const paymentDone = payment.length > 0;
+    const { data: payments, error: paymentError } = await supabase
+      .from("payments")
+      .select("amount_paid, paid_on, notes")
+      .eq("month_year", monthStart)
+      .limit(1);
 
-    // 4. Also format milk quantity by no.of days
-    const summary = getMilkSummaryQuantityWise(entries)
+    if (paymentError) throw paymentError;
 
-    // 5. prepare response
+    const paymentDone = payments && payments.length > 0;
+
+    // 4. quantity summary by day
+    const summary = getMilkSummaryQuantityWise(entries);
+
+    // 5. response
     res.json(
       ResponseDto.success(
         {
@@ -156,34 +254,41 @@ exports.getMonthSummary = async (req, res) => {
           entryCount: entries.length,
           month: monthYear,
           paymentDone,
-          paymentDetails: paymentDone ? payment[0] : null,
-          summary
+          paymentDetails: paymentDone ? payments[0] : null,
+          summary,
         },
         "Month summary fetched"
       )
     );
   } catch (err) {
-    console.log(err);
+    console.error("getMonthSummary error:", err);
     res.status(500).json(ResponseDto.error(err.message));
   }
 };
 
 
 exports.getEntriesByMonthYear = async (req, res) => {
-  const { monthYear } = req.params;
+  const { monthYear } = req.params; // "YYYY-MM"
   try {
-    const [entries] = await db.execute(
-      `select * from milk_entries where DATE_FORMAT(date, '%Y-%m') = ? order by date desc`,
-      [monthYear]
-    );
-    // Convert MySQL timestamps to epoch in response
-    const formattedRows = entries.map((row) => ({
+    const { monthStart, nextMonthStart } = monthStartAndNext(monthYear);
+
+    const { data: entries, error } = await supabase
+      .from("milk_entries")
+      .select("*")
+      .gte("date", monthStart)
+      .lt("date", nextMonthStart)
+      .order("date", { ascending: false });
+
+    if (error) throw error;
+
+    const formattedRows = (entries || []).map((row) => ({
       ...row,
       date: mysqlTimestampToEpoch(row.date),
     }));
+
     res.json(ResponseDto.success(formattedRows, "Entries fetched successfully"));
   } catch (err) {
-    console.log(err);
+    console.error("getEntriesByMonthYear error:", err);
     res.status(500).json(ResponseDto.error(err.message));
   }
 };
