@@ -44,14 +44,24 @@ const isEntryAlreadyCreatedWithDate = async (isoDate) => {
 
 // Create a milk entry
 exports.createEntry = async (req, res) => {
-  const { date, quantity, rate, notes } = req.body;
+  let { date, quantity, rate, notes } = req.body;
 
   try {
-    // date must be 'YYYY-MM-DD'
-    if (!date || isNaN(Date.parse(date))) {
+    if (typeof date === "number") {
+      // epoch -> YYYY-MM-DD
+      const ms = date.toString().length === 13 ? date : date * 1000;
+      date = new Date(ms).toISOString().slice(0, 10);
+    } else if (typeof date === "string") {
+      // already in YYYY-MM-DD
+      if (isNaN(Date.parse(date))) {
+        return res
+          .status(400)
+          .json(ResponseDto.error("Invalid date format. Use YYYY-MM-DD"));
+      }
+    } else {
       return res
         .status(400)
-        .json(ResponseDto.error("Invalid date format. Use YYYY-MM-DD"));
+        .json(ResponseDto.error("Date is required"));
     }
 
     const exists = await isEntryAlreadyCreatedWithDate(date);
@@ -64,7 +74,7 @@ exports.createEntry = async (req, res) => {
     const { data, error } = await supabase
       .from("milk_entries")
       .insert({
-        date,         
+        date,
         quantity,
         rate,
         notes: notes || null,
