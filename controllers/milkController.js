@@ -129,7 +129,9 @@ exports.updateEntry = async (req, res) => {
     if (typeof date === "number") {
       // epoch → YYYY-MM-DD
       const ms = date.toString().length === 13 ? date : date * 1000;
-      entryDate = new Date(ms).toISOString().slice(0, 10);
+      const d = new Date(ms);
+      entryDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
     } else if (typeof date === "string") {
       // already YYYY-MM-DD
       if (isNaN(Date.parse(date))) {
