@@ -1,0 +1,32 @@
+name: Cron Daily Milk Entry
+
+on:
+  schedule:
+    # 10:00 AM IST = 04:30 UTC
+    - cron: "30 4 * * *"
+  workflow_dispatch:
+
+jobs:
+  milk-entry:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Wait for backend health
+        run: |
+          echo "Checking health endpoint..."
+          for i in {1..10}; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://milk-tracker-backend.onrender.com/health)
+            if [ "$STATUS" = "200" ]; then
+              echo "Backend is healthy"
+              exit 0
+            fi
+            echo "Backend not ready yet, retrying..."
+            sleep 10
+          done
+          echo "Backend did not become healthy"
+          exit 1
+
+      - name: Trigger daily milk entry
+        run: |
+          curl -X POST https://milk-tracker-backend.onrender.com/api/internal/cron/daily-milk-entry \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}"
