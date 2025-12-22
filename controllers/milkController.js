@@ -207,6 +207,57 @@ exports.getEntryById = async (req, res) => {
   }
 };
 
+// set auto milk entry defaults
+exports.setMilkDefaults = async (req, res) => {
+  const { autoMilkEntryEnabled } = req.body;
+
+  if (typeof autoMilkEntryEnabled !== "boolean") {
+    return res
+      .status(400)
+      .json(ResponseDto.error("autoMilkEntryEnabled key must be boolean"));
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from("milk_defaults")
+      .update({ auto_entry_enabled: autoMilkEntryEnabled })
+      .eq("id", 1)
+      .select("auto_entry_enabled")
+      .single();
+
+    if (error) throw error;
+
+    res.json(
+      ResponseDto.success(
+        { autoMilkEntryEnabled: data.auto_entry_enabled },
+        `Auto milk entry ${autoMilkEntryEnabled ? "enabled" : "disabled"}`
+      )
+    );
+  } catch (err) {
+    console.error(err);
+    res.status(500).json(ResponseDto.error(err.message));
+  }
+};
+
+
+// Fetch milk defaults
+exports.getMilkDefaults = async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from("milk_defaults")
+      .select("*")
+      .limit(1)
+      .single();
+
+    if (error) throw error;
+
+    res.json(ResponseDto.success(data, "Milk defaults fetched successfully"));
+  } catch (err) {
+    console.error("fetchMilkDefaults error:", err);
+    res.status(500).json(ResponseDto.error(err.message));
+  }
+};
+
 exports.getMonthSummary = async (req, res) => {
   const { monthYear } = req.params; // "YYYY-MM"
 
