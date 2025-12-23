@@ -12,6 +12,10 @@ const paymentRoutes = require('./routes/paymentRoutes');
 const internalRoutes = require('./routes/internalRoutes');
 
 const ResponseDto = require('./utils/responseDto');
+const { pinAuth } = require('./middlewares/pinAuth');
+
+// middleware to protect routes with PIN
+app.use('/api', pinAuth);
 
 app.use('/api/milk', milkRoutes);
 app.use('/api/payments', paymentRoutes);
