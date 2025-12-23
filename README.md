@@ -1,162 +1,91 @@
-# MilkTracker
-# I am using this for my personal use :/
+# 🥛 Milk Tracker (Personal Project)
 
-A Node.js based REST API for tracking milk entries with quantity and rates. This application helps manage and track milk production/collection data.
+A **single-user personal tracking system** built to automate daily milk entries, track monthly consumption & payments, and practice real-world backend + frontend engineering.
 
-## Features
+This project focuses on **architecture, automation, and security trade-offs** rather than feature bloat.
 
-- Create, Read, Update, and Delete milk entries
-- Each entry contains date, quantity, and rate information
-- Standardized API responses with consistent DTO structure
+---
 
-## Prerequisites
+## 🔑 Key Highlights (Recruiter-Friendly)
 
-- Node.js (v14 or higher recommended)
-- MySQL database
+* Automated **daily data creation** using GitHub Actions (cron)
+* Cost-optimized backend by migrating from AWS RDS → Supabase (PostgreSQL)
+* Idempotent backend jobs (safe retries, no duplicates)
+* Layered backend security **without full authentication**
+* Clean REST APIs with proper HTTP semantics
 
-## Installation
+---
 
-1. Clone the repository:
-```bash
-git clone <repository-url>
-cd MilkTracker
-```
+## 🏗 Tech Stack
 
-2. Install dependencies:
-```bash
-npm install
-```
+* **Frontend**: Next.js (App Router)
+* **Backend**: Node.js + Express
+* **Database**: Supabase (PostgreSQL)
+* **Automation**: GitHub Actions (cron jobs)
+* **Hosting**:
 
-3. Set up your MySQL database and update the connection details in `models/db.js`
+  * Frontend: Vercel
+  * Backend: Render (free tier, sleeping service)
 
-4. Create the required table:
-```sql
-CREATE TABLE milk_entries (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    date DATE NOT NULL,
-    quantity DECIMAL(10,2) NOT NULL,
-    rate DECIMAL(10,2) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-```
+---
 
-## API Endpoints
+## 🤖 Automation (Cron Job)
 
-### Create Entry
-- **POST** `/api/milk`
-- **Body:**
-```json
-{
-    "date": "2024-03-20",
-    "quantity": 10.5,
-    "rate": 45.00
-}
-```
-- **Response:**
-```json
-{
-    "error": 0,
-    "data": {
-        "id": 1
-    },
-    "message": "Entry created successfully"
-}
-```
+* GitHub Action runs **daily at 10 AM IST**
+* Wakes sleeping backend via `/health` endpoint
+* Triggers protected internal endpoint to auto-create milk entry
+* Fully idempotent (checks if entry already exists)
 
-### Get All Entries
-- **GET** `/api/milk`
-- **Response:**
-```json
-{
-    "error": 0,
-    "data": [
-        {
-            "id": 1,
-            "date": "2024-03-20",
-            "quantity": 10.5,
-            "rate": 45.00,
-            "created_at": "2024-03-20T10:00:00Z"
-        }
-    ],
-    "message": "Success"
-}
-```
+**Why GitHub Actions?**
 
-### Update Entry
-- **PUT** `/api/milk/:id`
-- **Body:**
-```json
-{
-    "date": "2024-03-20",
-    "quantity": 11.5,
-    "rate": 46.00
-}
-```
-- **Response:**
-```json
-{
-    "error": 0,
-    "data": null,
-    "message": "Updated successfully"
-}
-```
+* Render free tier sleeps on inactivity
+* GitHub Actions reliably triggers backend without direct DB access
 
-### Delete Entry
-- **DELETE** `/api/milk/:id`
-- **Response:**
-```json
-{
-    "error": 0,
-    "data": null,
-    "message": "Deleted successfully"
-}
-```
+---
 
-## Response Structure
+## 🔐 Security Design (Intentional & Layered)
 
-All API responses follow a standard DTO (Data Transfer Object) structure:
+This is a **single-user app**, so full login/signup was intentionally skipped.
 
-```javascript
-{
-    error: 0,      // 0 for success, non-zero for errors
-    data: null,    // The actual response data
-    message: ""    // Response message
-}
-```
+Instead, security is enforced as:
 
-## Error Handling
+* **Backend PIN-based authorization** (validated via middleware)
+* **CORS restriction** (only frontend origin allowed)
+* **Rate limiting** on API routes
 
-In case of errors, the response will maintain the same structure but with:
-- `error` set to a non-zero value
-- `data` set to null
-- `message` containing the error description
+> Demonstrates secure system design without unnecessary auth complexity.
 
-Example error response:
-```json
-{
-    "error": 1,
-    "data": null,
-    "message": "Error message description"
-}
-```
+---
 
-## Running the Application
+## 🧩 Data Modeling (Core Tables)
 
-Start the server:
-```bash
-node app.js
-```
+* `milk_entries` – daily quantity & rate
+* `payments` – month-wise payment tracking
+* `milk_defaults` – default rate, quantity & auto-entry toggle
 
-The API will be available at `http://localhost:3000` (or your configured port).
+---
 
-## Contributing
+## 🎯 Design Decisions (Interview Focus)
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+* Skipped full auth because the app is single-user
+* Used DB-driven flags to control cron behavior
+* Chose GitHub Actions over in-app cron due to sleeping backend
+* Separated internal automation routes from public APIs
 
-## License
+---
 
-This project is licensed under the Amandeep Ji License :/
+## 🚀 What This Project Demonstrates
+
+* Real-world backend problem solving
+* Automation reliability
+* Cost-aware architecture
+* Security-first thinking
+* Clean, maintainable code structure
+
+---
+
+📌 **Note**: Authentication can be added easily if the app becomes multi-user.
+
+---
+
+Built as a personal learning project with a strong focus on **engineering fundamentals**.
