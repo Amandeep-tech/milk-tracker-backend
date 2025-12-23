@@ -14,9 +14,13 @@ const internalRoutes = require('./routes/internalRoutes');
 const ResponseDto = require('./utils/responseDto');
 const { pinAuth } = require('./middlewares/pinAuth');
 const {checkCors} = require('./middlewares/cors');
+const {apiRateLimiter} = require('./middlewares/apiRateLimit');
 
 // middleware to handle CORS for all routes
 app.use(checkCors);
+
+// middleware to limit API requests starting from "/api"
+app.use('/api', apiRateLimiter);
 
 // middleware to protect routes with PIN
 app.use('/api', pinAuth);
