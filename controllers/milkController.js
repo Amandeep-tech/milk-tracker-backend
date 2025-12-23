@@ -227,9 +227,20 @@ exports.setMilkDefaults = async (req, res) => {
 
     if (error) throw error;
 
+    // get updated value from DB
+    const { data: updatedData, error: fetchError } = await supabase
+      .from("milk_defaults")
+      // select all columns
+      .select("*")
+      .eq("id", 1)
+      .limit(1)
+      .single();
+
+    if (fetchError) throw fetchError;
+
     res.json(
       ResponseDto.success(
-        { autoMilkEntryEnabled: data.auto_entry_enabled },
+        updatedData,
         `Auto milk entry ${autoMilkEntryEnabled ? "enabled" : "disabled"}`
       )
     );
