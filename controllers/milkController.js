@@ -1,10 +1,9 @@
 const supabase = require("../models/db"); // should export supabase client (CommonJS)
 const ResponseDto = require("../utils/responseDto");
 const {
-  epochToMySQLTimestamp,
   mysqlTimestampToEpoch,
 } = require("../utils/dateUtils");
-const { getMilkSummaryQuantityWise } = require("../utils/globalUtil");
+const { getMilkSummaryQuantityWise, getMonthRange } = require("../utils/globalUtil");
 
 /*
   ASSUMPTION: Supabase table columns are:
@@ -96,17 +95,34 @@ exports.createEntry = async (req, res) => {
 
 // Get all entries
 exports.getAllEntries = async (req, res) => {
+  const { yearMonth } = req.query;
+
   try {
-    const { data: rows, error } = await supabase
+    let query = supabase
       .from("milk_entries")
       .select("*")
       .order("date", { ascending: false });
 
+    if (yearMonth) {
+      // validate format
+      if (!/^\d{4}-\d{2}$/.test(yearMonth)) {
+        return res
+          .status(400)
+          .json(ResponseDto.error("Invalid yearMonth format. Use YYYY-MM"));
+      }
+
+      const { start, end } = getMonthRange(yearMonth);
+
+      query = query
+        .gte("date", start)
+        .lt("date", end);
+    }
+
+    const { data: rows, error } = await query;
     if (error) throw error;
 
     const formattedRows = (rows || []).map((row) => ({
       ...row,
-      // convert date (date) to epoch ms (reuse your util)
       date: mysqlTimestampToEpoch(row.date),
     }));
 
@@ -116,6 +132,7 @@ exports.getAllEntries = async (req, res) => {
     res.status(500).json(ResponseDto.error(err.message));
   }
 };
+
 
 // Update entry
 exports.updateEntry = async (req, res) => {
