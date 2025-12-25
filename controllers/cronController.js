@@ -10,6 +10,7 @@ exports.runDailyMilkEntryJob = async (req, res) => {
 // 	2. If auto_entry_enabled = false → exit
 // 	3. Check if today’s entry exists
 // 	4. Insert using defaults
+	let defaultMilkConfig;
 	try {
 		// 1. Read milk_defaults
 		const { data: defaults, error } = await supabase
@@ -19,6 +20,8 @@ exports.runDailyMilkEntryJob = async (req, res) => {
 			.single();
 
 		if (error) throw error;
+
+		defaultMilkConfig = defaults;
 		// 2. If auto_entry_enabled = false → exit
 		if (!defaults.auto_entry_enabled) {
 			return res.json(
@@ -54,7 +57,7 @@ exports.runDailyMilkEntryJob = async (req, res) => {
 		await supabase.from("milk_entries").insert({
 			date,
 			quantity: 1,
-			rate: 52,
+			rate: defaultMilkConfig.rate,
 			notes: "github cron job entry",
 		});
 
