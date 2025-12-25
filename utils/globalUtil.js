@@ -34,3 +34,15 @@ exports.getMilkSummaryQuantityWise = (entries) => {
     }
     return summary;
 }
+
+exports.getMonthRange = (yearMonth) => {
+  const [year, month] = yearMonth.split("-").map(Number);
+
+  const startDate = new Date(year, month - 1, 1); // YYYY-MM-01
+  const endDate = new Date(year, month, 1);       // first day of next month
+
+  return {
+    start: startDate.toISOString().slice(0, 10), // YYYY-MM-DD
+    end: endDate.toISOString().slice(0, 10),
+  };
+};
