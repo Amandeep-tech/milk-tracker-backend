@@ -9,14 +9,16 @@ exports.runDailyMilkEntryJob = async (req, res) => {
 
   // 	1. Read milk_defaults
   // 	2. If auto_entry_enabled = false → exit
-  // 	3. Check if today’s entry exists
-  // 	4. Insert using defaults
+	// 	3. Check vacation mode
+  // 	4. Check if today’s entry exists
+  // 	5. Insert using defaults
   let defaultMilkConfig;
+	const today = new Date().toISOString().slice(0, 10);
   try {
     // 1. Read milk_defaults
     const { data: defaults, error } = await supabase
       .from("milk_defaults")
-      .select("auto_entry_enabled, quantity, rate")
+      .select("*")
       .limit(1)
       .single();
 
@@ -24,8 +26,14 @@ exports.runDailyMilkEntryJob = async (req, res) => {
 
     defaultMilkConfig = defaults;
     // 2. If auto_entry_enabled = false → exit
-    if (!defaults.auto_entry_enabled) {
+    if (!defaultMilkConfig.auto_entry_enabled) {
       return res.json(ResponseDto.success(null, "Auto milk entry is disabled"));
+    }
+		// 3. Check vacation mode
+		if (isVacationActive(defaultMilkConfig, today)) {
+      return res
+        .status(200)
+        .json(ResponseDto.error("Vacation mode is active"));
     }
   } catch (err) {
     console.error(err);
@@ -35,8 +43,6 @@ exports.runDailyMilkEntryJob = async (req, res) => {
   }
 
   // 3. Check vacation mode
-	const today = new Date().toISOString().slice(0, 10);
-
   if (isVacationActive(defaultMilkConfig, today)) {
     return res
 		.status(200)
