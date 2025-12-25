@@ -10,6 +10,7 @@ app.use(express.json());
 const milkRoutes = require('./routes/milkRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const internalRoutes = require('./routes/internalRoutes');
+const settingsRoutes = require('./routes/settingsRoutes');
 
 const ResponseDto = require('./utils/responseDto');
 const { pinAuth } = require('./middlewares/pinAuth');
@@ -25,9 +26,12 @@ app.use('/api', apiRateLimiter);
 // middleware to protect routes with PIN
 app.use('/api', pinAuth);
 
+app.use('/api/settings', settingsRoutes);
+
 app.use('/api/milk', milkRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/internal', internalRoutes);
+
 
 
 

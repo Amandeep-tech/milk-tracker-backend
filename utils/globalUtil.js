@@ -46,3 +46,12 @@ exports.getMonthRange = (yearMonth) => {
     end: endDate.toISOString().slice(0, 10),
   };
 };
+
+exports.isVacationActive = (defaults, today) => {
+  const { vacation_from, vacation_to } = defaults;
+
+  if (!vacation_from || !vacation_to) return false;
+
+  return today >= vacation_from && today <= vacation_to;
+};
+
