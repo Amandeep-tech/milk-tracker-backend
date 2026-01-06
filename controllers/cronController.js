@@ -68,7 +68,7 @@ exports.runDailyMilkEntryJob = async (req, res) => {
 
     await supabase.from("milk_entries").insert({
       date,
-      quantity: 1,
+      quantity: defaultMilkConfig.quantity,
       rate: defaultMilkConfig.rate,
       notes: "github cron job entry",
     });
