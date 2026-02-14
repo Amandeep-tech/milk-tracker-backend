@@ -1,9 +1,10 @@
 const supabase = require("../models/db"); // should export supabase client (CommonJS)
 const ResponseDto = require("../utils/responseDto");
+const { mysqlTimestampToEpoch } = require("../utils/dateUtils");
 const {
-  mysqlTimestampToEpoch,
-} = require("../utils/dateUtils");
-const { getMilkSummaryQuantityWise, getMonthRange } = require("../utils/globalUtil");
+  getMilkSummaryQuantityWise,
+  getMonthRange,
+} = require("../utils/globalUtil");
 
 /*
   ASSUMPTION: Supabase table columns are:
@@ -58,9 +59,7 @@ exports.createEntry = async (req, res) => {
           .json(ResponseDto.error("Invalid date format. Use YYYY-MM-DD"));
       }
     } else {
-      return res
-        .status(400)
-        .json(ResponseDto.error("Date is required"));
+      return res.status(400).json(ResponseDto.error("Date is required"));
     }
 
     const exists = await isEntryAlreadyCreatedWithDate(date);
@@ -92,7 +91,6 @@ exports.createEntry = async (req, res) => {
   }
 };
 
-
 // Get all entries
 exports.getAllEntries = async (req, res) => {
   const { yearMonth } = req.query;
@@ -113,9 +111,7 @@ exports.getAllEntries = async (req, res) => {
 
       const { start, end } = getMonthRange(yearMonth);
 
-      query = query
-        .gte("date", start)
-        .lt("date", end);
+      query = query.gte("date", start).lt("date", end);
     }
 
     const { data: rows, error } = await query;
@@ -133,7 +129,6 @@ exports.getAllEntries = async (req, res) => {
   }
 };
 
-
 // Update entry
 exports.updateEntry = async (req, res) => {
   const { id } = req.params;
@@ -148,7 +143,6 @@ exports.updateEntry = async (req, res) => {
       const ms = date.toString().length === 13 ? date : date * 1000;
       const d = new Date(ms);
       entryDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-
     } else if (typeof date === "string") {
       // already YYYY-MM-DD
       if (isNaN(Date.parse(date))) {
@@ -158,9 +152,7 @@ exports.updateEntry = async (req, res) => {
       }
       entryDate = date;
     } else {
-      return res
-        .status(400)
-        .json(ResponseDto.error("Date is required"));
+      return res.status(400).json(ResponseDto.error("Date is required"));
     }
 
     const { error } = await supabase
@@ -181,7 +173,6 @@ exports.updateEntry = async (req, res) => {
     res.status(500).json(ResponseDto.error(err.message));
   }
 };
-
 
 // Delete entry
 exports.deleteEntry = async (req, res) => {
@@ -226,44 +217,68 @@ exports.getEntryById = async (req, res) => {
 
 // set auto milk entry defaults
 exports.setMilkDefaults = async (req, res) => {
-  const { autoMilkEntryEnabled } = req.body;
+  const { autoMilkEntryEnabled, quantity, rate } = req.body;
 
-  if (typeof autoMilkEntryEnabled !== "boolean") {
+  // 1. Validate input safely
+  if (
+    autoMilkEntryEnabled !== undefined &&
+    typeof autoMilkEntryEnabled !== "boolean"
+  ) {
     return res
       .status(400)
-      .json(ResponseDto.error("autoMilkEntryEnabled key must be boolean"));
+      .json(ResponseDto.error("autoMilkEntryEnabled must be boolean"));
+  }
+
+  if (quantity !== undefined && typeof quantity !== "number") {
+    return res
+      .status(400)
+      .json(ResponseDto.error("quantity must be number"));
+  }
+
+  if (rate !== undefined && typeof rate !== "number") {
+    return res
+      .status(400)
+      .json(ResponseDto.error("rate must be number"));
   }
 
   try {
+    // 2. Build update object dynamically
+    const updatePayload = {};
+
+    if (autoMilkEntryEnabled !== undefined)
+      updatePayload.auto_entry_enabled = autoMilkEntryEnabled;
+
+    if (quantity !== undefined)
+      updatePayload.quantity = quantity;
+
+    if (rate !== undefined)
+      updatePayload.rate = rate;
+
+    // 3️. If nothing to update
+    if (Object.keys(updatePayload).length === 0) {
+      return res
+        .status(400)
+        .json(ResponseDto.error("No valid fields provided"));
+    }
+
+    // 4️. Update and return updated row
     const { data, error } = await supabase
       .from("milk_defaults")
-      .update({ auto_entry_enabled: autoMilkEntryEnabled })
+      .update(updatePayload)
       .eq("id", 1)
-      .select("auto_entry_enabled")
+      .select("*")
       .single();
 
     if (error) throw error;
 
-    // get updated value from DB
-    const { data: updatedData, error: fetchError } = await supabase
-      .from("milk_defaults")
-      // select all columns
-      .select("*")
-      .eq("id", 1)
-      .limit(1)
-      .single();
-
-    if (fetchError) throw fetchError;
-
-    res.json(
-      ResponseDto.success(
-        updatedData,
-        `Auto milk entry ${autoMilkEntryEnabled ? "enabled" : "disabled"}`
-      )
+    return res.json(
+      ResponseDto.success(data, "Milk defaults updated successfully")
     );
   } catch (err) {
-    console.error(err);
-    res.status(500).json(ResponseDto.error(err.message));
+    console.error("setMilkDefaults error:", err);
+    return res
+      .status(500)
+      .json(ResponseDto.error("Server error while updating defaults"));
   }
 };
 
@@ -348,15 +363,14 @@ exports.getMonthSummary = async (req, res) => {
           paymentDetails: paymentDone ? payments[0] : null,
           summary,
         },
-        "Month summary fetched"
-      )
+        "Month summary fetched",
+      ),
     );
   } catch (err) {
     console.error("getMonthSummary error:", err);
     res.status(500).json(ResponseDto.error(err.message));
   }
 };
-
 
 exports.getEntriesByMonthYear = async (req, res) => {
   const { monthYear } = req.params; // "YYYY-MM"
@@ -377,7 +391,9 @@ exports.getEntriesByMonthYear = async (req, res) => {
       date: mysqlTimestampToEpoch(row.date),
     }));
 
-    res.json(ResponseDto.success(formattedRows, "Entries fetched successfully"));
+    res.json(
+      ResponseDto.success(formattedRows, "Entries fetched successfully"),
+    );
   } catch (err) {
     console.error("getEntriesByMonthYear error:", err);
     res.status(500).json(ResponseDto.error(err.message));
