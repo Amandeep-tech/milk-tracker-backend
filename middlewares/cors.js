@@ -1,5 +1,5 @@
 const cors = require('cors');
-const allowedOrigins = ['http://localhost:3000', 'https://milk-tracker-frontend.vercel.app'];
+const allowedOrigins = ['http://localhost:3000', 'https://milk-tracker-frontend.vercel.app', 'https://milk-tracker-aman.vercel.app'];
 
 exports.checkCors = cors({
   origin: (origin, callback) => {
