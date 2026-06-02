@@ -36,7 +36,7 @@ app.use('/api/internal', internalRoutes);
 
 
 app.get('/health', (req, res) => {
-    res.status(200).json(ResponseDto.success(null, 'Milk Tracker Backend Server is healthy'));
+    res.status(200).json(ResponseDto.success(null, 'Milk Tracker Backend Server is healthy here'));
 });
 
 const PORT = process.env.PORT || 5000;
