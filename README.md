@@ -89,3 +89,5 @@ Instead, security is enforced as:
 ---
 
 Built as a personal learning project with a strong focus on **engineering fundamentals**.
+
+## Ignore from here.
